@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Astronaut Health Monitor</title>
+<style>
+:root{--bg:#f4f6fb;--card:#fff;--tx:#14182b;--mu:#667;--bd:#dde2ee;--ok:#16a34a;--wa:#d97706;--cr:#dc2626;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1020;--card:#151b30;--tx:#e8ecf8;--mu:#93a0c0;--bd:#26304f}}
+:root[data-theme="dark"]{--bg:#0b1020;--card:#151b30;--tx:#e8ecf8;--mu:#93a0c0;--bd:#26304f}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+main{max-width:900px;margin:auto;padding:16px}
+header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+h1{font-size:1.3rem;margin:0}.sub{color:var(--mu);font-size:.85rem}
+.clock{text-align:right;font-variant-numeric:tabular-nums}.clock b{font-size:1.2rem}
+.status{margin:14px 0;padding:14px;border-radius:12px;color:#fff;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.status.Normal{background:var(--ok)}.status.Warning{background:var(--wa)}.status.Critical{background:var(--cr);animation:p 1s infinite}
+@keyframes p{50%{opacity:.7}}
+#alerts{margin-bottom:14px}.al{padding:10px 12px;border-left:5px solid var(--cr);background:var(--card);border-radius:8px;margin-bottom:6px;font-size:.9rem}
+.al.w{border-color:var(--wa)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;border-top:4px solid var(--ok)}
+.card.Warning{border-top-color:var(--wa)}.card.Critical{border-top-color:var(--cr)}
+.top{display:flex;justify-content:space-between;color:var(--mu);font-size:.85rem}
+.val{font-size:2rem;font-weight:700;margin:6px 0}.val small{font-size:.9rem;color:var(--mu)}
+.tag{font-size:.75rem;font-weight:700;color:var(--ok)}.Warning .tag{color:var(--wa)}.Critical .tag{color:var(--cr)}
+svg{width:100%;height:40px}polyline{fill:none;stroke:currentColor;stroke-width:2}
+.rule{color:var(--mu);font-size:.75rem;margin-top:4px}
+</style></head><body><main>
+<header><div><h1>🧑‍🚀 Astronaut Health Monitor</h1><div class="sub">Cmdr. A. Nair · ISS Mission Alpha (simulated data)</div></div>
+<div class="clock"><b id="md">Day 1</b><div class="sub" id="mt">00:00:00 MET</div></div></header>
+<div class="status Normal" id="st"><span>Overall Health Status</span><span id="stv">Normal</span></div>
+<div id="alerts"></div><div class="grid" id="g"></div>
+<p class="sub">Alert logic: each parameter is checked against thresholds; overall status = worst parameter. Last update: <span id="lu">-</span></p>
+</main>
+<script>
+const P=[
+{k:'hr',n:'Heart Rate',u:'bpm',v:72,min:40,max:150,step:5,d:0,f:v=>v<45||v>120?2:v<55||v>100?1:0,r:'Normal 55–100 · Critical <45 or >120'},
+{k:'o2',n:'Oxygen Level',u:'%',v:97,min:85,max:100,step:1.2,d:0,f:v=>v<90?2:v<95?1:0,r:'Normal ≥95 · Warning 90–94 · Critical <90'},
+{k:'t',n:'Body Temperature',u:'°C',v:36.8,min:34.5,max:39.5,step:.25,d:1,f:v=>v<35.5||v>38?2:v<36.1||v>37.5?1:0,r:'Normal 36.1–37.5 · Critical <35.5 or >38'},
+{k:'s',n:'Sleep Duration (last night)',u:'h',v:7.2,min:3,max:9,step:.4,d:1,f:v=>v<5?2:v<6.5?1:0,r:'Normal ≥6.5 · Warning 5–6.5 · Critical <5'},
+{k:'e',n:'Exercise Time (today)',u:'min',v:90,min:0,max:150,step:8,d:0,f:v=>v<15?2:v<45?1:0,r:'Normal ≥45 · Warning 15–45 · Critical <15'}];
+const N=['Normal','Warning','Critical'];P.forEach(p=>p.h=[p.v]);
+const g=document.getElementById('g');
+P.forEach(p=>g.insertAdjacentHTML('beforeend',`<div class="card" id="c-${p.k}"><div class="top"><span>${p.n}</span><span class="tag"></span></div><div class="val"></div><svg viewBox="0 0 100 40" preserveAspectRatio="none"><polyline/></svg><div class="rule">${p.r}</div></div>`));
+let met=0;const pad=n=>String(n).padStart(2,'0');
+function tick(){
+ met+=60; // 1 real sec = 1 mission minute
+ const L=[];let worst=0;
+ P.forEach(p=>{
+  p.v+=(Math.random()-.5)*2*p.step;
+  if(Math.random()<.06)p.v+=(Math.random()<.5?-1:1)*p.step*3; // occasional spike
+  p.v+=(p.base??(p.base=p.v))*0; p.v=Math.min(p.max,Math.max(p.min,p.v));
+  if(Math.random()<.2)p.v+=(({hr:72,o2:97,t:36.8,s:7.2,e:90})[p.k]-p.v)*.4; // drift back to normal
+  p.h.push(p.v);if(p.h.length>30)p.h.shift();
+  const s=p.f(p.v);worst=Math.max(worst,s);
+  const c=document.getElementById('c-'+p.k);c.className='card '+N[s];
+  c.querySelector('.tag').textContent=N[s].toUpperCase();
+  c.querySelector('.val').innerHTML=p.v.toFixed(p.d)+' <small>'+p.u+'</small>';
+  const lo=Math.min(...p.h),hi=Math.max(...p.h),r=hi-lo||1;
+  c.querySelector('polyline').setAttribute('points',p.h.map((x,i)=>(i/29*100).toFixed(1)+','+(36-(x-lo)/r*32).toFixed(1)).join(' '));
+  c.style.color='';c.querySelector('svg').style.color=s?(s>1?'var(--cr)':'var(--wa)'):'var(--ok)';
+  if(s)L.push(`<div class="al ${s<2?'w':''}">${s>1?'🚨 CRITICAL ALERT':'⚠️ Warning'}: ${p.n} at ${p.v.toFixed(p.d)} ${p.u}</div>`);
+ });
+ const st=document.getElementById('st');st.className='status '+N[worst];document.getElementById('stv').textContent=N[worst];
+ document.getElementById('alerts').innerHTML=L.join('');
+ const d=Math.floor(met/86400)+1,r=met%86400;
+ document.getElementById('md').textContent='Mission Day '+d;
+ document.getElementById('mt').textContent=pad(Math.floor(r/3600))+':'+pad(Math.floor(r%3600/60))+':'+pad(r%60)+' MET';
+ document.getElementById('lu').textContent=new Date().toLocaleTimeString();
+}
+tick();setInterval(tick,2000);
+</script></body></html>
